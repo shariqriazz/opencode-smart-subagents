@@ -168,8 +168,19 @@ export function createTools(ctx: Ctx, settings: Settings) {
       agent: agent.id,
       ...(model ? { model } : {}),
       ...(rules.length ? { permissions: rules } : {}),
-      ...(worktree ? { location: { directory: worktree.path } } : {}),
     });
+    // OpenCode creates a child in its parent's location. The move goes through the child's inbox, so wait for it to
+    // apply and confirm it before the first prompt; otherwise the first run would still work in the parent's checkout.
+    if (worktree) {
+      await ctx.session.move({ sessionID: child.id, directory: worktree.path, delivery: "steer" });
+      await ctx.session.wait({ sessionID: child.id });
+      const moved = await ctx.session.get({ sessionID: child.id });
+      if (moved.location.directory !== worktree.path) {
+        await ctx.session.remove({ sessionID: child.id }).catch(() => undefined);
+        await ctx.worktree.remove({ projectID: worktree.projectID, directory: worktree.path, force: true }).catch(() => undefined);
+        throw new Error(`Could not move the subagent into its worktree ${worktree.path}; it is still in ${moved.location.directory}.`);
+      }
+    }
     const record: ChildRecord = {
       id: child.id,
       parentID: parent.id,

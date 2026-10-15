@@ -103,8 +103,12 @@ export async function outcome(ctx: Ctx, record: ChildRecord): Promise<{ state: R
     ctx.session.context({ sessionID: record.id }) as Promise<ContextMessage[]>,
   ]);
   const report = latestReport(messages);
-  if (info.outcome === "failed") return { state: "error", text: latestError(messages) ?? report ?? "Subagent failed" };
-  if (info.outcome === "interrupted") return { state: "cancelled", text: report ? `Subagent cancelled. Its last report:\n\n${report}` : "Subagent cancelled" };
+  // The newest assistant message describes the run that just ended; the session outcome can still describe an
+  // earlier run while a shutdown interrupts this one.
+  const error = latestError(messages);
+  const interrupted = info.outcome === "interrupted" || (error !== undefined && /\baborted\b|interrupted/i.test(error));
+  if (interrupted) return { state: "cancelled", text: report ? `Subagent cancelled. Its last report:\n\n${report}` : "Subagent cancelled" };
+  if (error !== undefined || info.outcome === "failed") return { state: "error", text: error ?? report ?? "Subagent failed" };
   return { state: "completed", text: report ?? NO_TEXT };
 }
 
@@ -118,8 +122,9 @@ export async function settle(ctx: Ctx, record: ChildRecord) {
   return result;
 }
 
+/** Sends the report to the parent, then records it. A failed send leaves the child running, so a restart retries it. */
 async function deliver(ctx: Ctx, record: ChildRecord) {
-  const result = await settle(ctx, record);
+  const result = await outcome(ctx, record);
   await ctx.session.synthetic({
     sessionID: record.parentID,
     description: record.description,
@@ -127,6 +132,8 @@ async function deliver(ctx: Ctx, record: ChildRecord) {
     metadata: { source: "subagent", childID: record.id, agent: record.agent, state: result.state },
     delivery: state().delivery,
   });
+  record.status = statusOf(result.state);
+  await save(ctx, record);
 }
 
 /**

@@ -57,9 +57,13 @@ export async function cleanRepoRoot(directory: string): Promise<string> {
   return repoRoot;
 }
 
-/** Records the branch and starting commit of a worktree OpenCode just created. */
+/** Records the starting commit of a worktree OpenCode just created, giving a detached worktree its own branch so its commits can be cherry-picked or merged. */
 export async function describeWorktree(repoRoot: string, directory: string, projectID: string): Promise<WorktreeInfo> {
-  const branch = await git(["-C", directory, "rev-parse", "--abbrev-ref", "HEAD"]);
+  let branch = await git(["-C", directory, "rev-parse", "--abbrev-ref", "HEAD"]);
+  if (branch === "HEAD") {
+    branch = `opencode-subagent/${path.basename(directory)}`;
+    await git(["-C", directory, "switch", "-c", branch]);
+  }
   const baseCommit = await git(["-C", directory, "rev-parse", "HEAD"]);
   return { repoRoot, path: directory, branch, baseCommit, projectID };
 }
@@ -98,7 +102,7 @@ export async function integrateWorktree(info: WorktreeInfo, action: "cherry-pick
   if (info.branch === "HEAD") throw new Error("The worktree has a detached HEAD, so it has no branch to integrate. Use action patch.");
   if (await git(["-C", info.path, "status", "--porcelain"])) {
     await git(["-C", info.path, "add", "-A", "--", "."]);
-    await git(["-C", info.path, ...COMMIT_IDENTITY, "commit", "-m", `Apply ${label} subagent changes`]);
+    await git(["-C", info.path, ...COMMIT_IDENTITY, "commit", "-m", `Apply subagent changes: ${label}`]);
   }
   const inspected = await inspectWorktree(info);
   if (inspected.commits.length === 0) return { changed: false, files: inspected.files, commits: [] as string[] };
