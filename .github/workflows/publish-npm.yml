@@ -1,0 +1,38 @@
+name: Publish npm package
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+# One publish at a time; a newer push waits instead of racing an older one.
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3
+        with:
+          cache: true
+      - run: mise exec --locked -- bun install --frozen-lockfile
+      - run: mise exec --locked -- bun run validate
+      - name: Publish if this exact version is not on npm
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          # Check the exact version, so rerunning an older commit never republishes.
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION is already published on npm. Skipping publish step."
+          else
+            echo "Publishing $NAME@$VERSION..."
+            mise exec --locked -- npm publish --access public --provenance
+          fi

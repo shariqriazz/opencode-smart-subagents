@@ -6,7 +6,7 @@ An OpenCode 2 plugin that replaces the built-in `subagent` tool with two-way sub
 
 ## Commands
 
-- `mise exec --locked -- bun run validate`: typecheck. Run it before every commit.
+- `mise exec --locked -- bun run validate`: typecheck and tests. Run it before every commit.
 - `mise exec --locked -- bun run pack:inspect`: check the npm payload after changing `package.json`, `files`, or `skills/`.
 
 ## Critical patterns
@@ -21,7 +21,7 @@ An OpenCode 2 plugin that replaces the built-in `subagent` tool with two-way sub
 
 ## Releases
 
-Bump `version` in `package.json` with every functional change.
+Bump `version` in `package.json` with every functional change; pushing it to `main` publishes through `.github/workflows/publish-npm.yml`. OpenCode does not update an unpinned plugin by itself: after the publish succeeds and npm serves the new tarball, run `opencode plugin update opencode-smart-subagents` from a project directory. The user's OpenCode service loads the new version only after a restart, which needs the user's go-ahead.
 
 ## Documentation
 

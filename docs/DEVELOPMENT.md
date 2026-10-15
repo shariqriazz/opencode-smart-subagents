@@ -1,12 +1,12 @@
 # Development
 
-The toolchain is pinned in `mise.toml`, and Bun manages dependencies through `bun.lock`. OpenCode loads the TypeScript sources directly, so there is no build step.
+The toolchain is pinned in `mise.toml`, Bun manages dependencies through `bun.lock`, and tests run under Node's built-in test runner with native TypeScript. OpenCode loads the TypeScript sources directly, so there is no build step.
 
 ## Commands
 
 - `mise install --locked`: install the pinned Bun and Node.
 - `mise exec --locked -- bun install`: install locked dependencies.
-- `mise exec --locked -- bun run validate`: typecheck.
+- `mise exec --locked -- bun run validate`: typecheck and run the tests.
 - `mise exec --locked -- bun run pack:inspect`: list what the npm package would contain.
 
 ## Run a local checkout
@@ -37,6 +37,16 @@ Use a scratch git repository with one commit as the session location, and run th
 8. Restart the test server while a background child runs `sleep 60`: after the restart, touch the location (`GET /api/plugin?location[directory]=<repo>`), and the parent's inbox has a `cancelled` report.
 
 Remove the test worktrees and stop the test server afterwards.
+
+## Tests
+
+`test/plugin.test.ts` drives the plugin against an in-memory fake of the plugin context: tool registration and the parent and child tool split, background and foreground runs, questions, batches, peers, report delivery and restart recovery. The worktree tests run real git commands in temporary repositories. The fake ends a child's run only after the child's own tool calls finish, as OpenCode does; keep that ordering when adding cases.
+
+## Releases
+
+Pushing to `main` runs CI (`.github/workflows/ci.yml`). The publish workflow (`.github/workflows/publish-npm.yml`) validates and publishes to npm with provenance whenever `package.json` carries a version that isn't on npm yet, so bump `version` with every functional change.
+
+Publishing uses npm trusted publishing (OIDC), so the repository holds no npm token. The package's trusted publisher on npmjs.com names this repository and `publish-npm.yml`; renaming the workflow file breaks publishing until that setting is updated.
 
 ## Upgrading OpenCode
 

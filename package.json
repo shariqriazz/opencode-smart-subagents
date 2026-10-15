@@ -37,7 +37,8 @@
   },
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json",
-    "validate": "bun run check",
+    "test": "node --test test/*.test.ts",
+    "validate": "bun run check && bun run test",
     "pack:inspect": "npm pack --dry-run --ignore-scripts"
   },
   "peerDependencies": {
