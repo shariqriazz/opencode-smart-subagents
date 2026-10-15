@@ -1,0 +1,56 @@
+{
+  "name": "opencode-smart-subagents",
+  "version": "0.1.0",
+  "description": "Two-way subagents for OpenCode 2: children that message and question their parent, steering, peer messages, batches, context forks, and isolated worktrees.",
+  "license": "MIT",
+  "author": "Shariq Riaz",
+  "type": "module",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "subagents",
+    "agents",
+    "delegation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shariqriazz/opencode-smart-subagents.git"
+  },
+  "homepage": "https://github.com/shariqriazz/opencode-smart-subagents#readme",
+  "bugs": {
+    "url": "https://github.com/shariqriazz/opencode-smart-subagents/issues"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
+    "validate": "bun run check",
+    "pack:inspect": "npm pack --dry-run --ignore-scripts"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": ">=2.0.29"
+  },
+  "peerDependenciesMeta": {
+    "@opencode/plugin": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@opencode/plugin": "2.0.29",
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2"
+  }
+}
