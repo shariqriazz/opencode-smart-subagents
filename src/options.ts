@@ -25,10 +25,6 @@ export function parseModelRef(value: string): ModelRef | undefined {
   return { providerID: ref.slice(0, slash), id: ref.slice(slash + 1), ...(variant ? { variant } : {}) };
 }
 
-export function formatModelRef(model: ModelRef) {
-  return `${model.providerID}/${model.id}${model.variant ? `#${model.variant}` : ""}`;
-}
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 
