@@ -1,7 +1,7 @@
-import { capabilityRules, CAPABILITIES, isCapability, type Capability } from "./capability.ts";
-import { children, load, runningCount, save, settle, state, watch, type ChildRecord, type Ctx } from "./coordinator.ts";
+import { CAPABILITIES, childRules, isCapability, type Capability } from "./capability.ts";
+import { children, load, save, settle, state, watch, type ChildRecord, type Ctx } from "./coordinator.ts";
 import { buildChildPrompt, forkTranscript, latestReport, parseForkTurns, type ContextMessage } from "./messages.ts";
-import { parseModelRef, type ModelRef, type Settings } from "./options.ts";
+import { parseModelRef, type ModelRef } from "./options.ts";
 import * as text from "./prompt.ts";
 import { cleanRepoRoot, deleteWorktreeBranch, describeWorktree, inspectWorktree, integrateWorktree, patchWorktree, WORKTREE_ACTIONS, type WorktreeAction } from "./worktree.ts";
 
@@ -61,7 +61,7 @@ const slug = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "subagent";
 
 /** Plugin tools registered for one location, sharing the process-wide coordinator. */
-export function createTools(ctx: Ctx, settings: Settings) {
+export function createTools(ctx: Ctx) {
   const sessionCache = new Map<string, Promise<SessionInfo>>();
   const getSession = (sessionID: string) => {
     let cached = sessionCache.get(sessionID);
@@ -161,13 +161,13 @@ export function createTools(ctx: Ctx, settings: Settings) {
     const transcript =
       prepared.turns === "none" ? undefined : forkTranscript((await ctx.session.context({ sessionID: parent.id })) as ContextMessage[], prepared.turns);
     const model = prepared.model ?? agent.model ?? parent.model;
-    const rules = capabilityRules(spec.capability);
+    // Explicit permissions replace the ones a child would inherit from its parent session, so carry those over first.
     const child = await ctx.session.create({
       parentID: parent.id,
       title: spec.description,
       agent: agent.id,
       ...(model ? { model } : {}),
-      ...(rules.length ? { permissions: rules } : {}),
+      permissions: [...(parent.permissions ?? []), ...childRules(spec.capability)],
     });
     // OpenCode creates a child in its parent's location. The move goes through the child's inbox, so wait for it to
     // apply and confirm it before the first prompt; otherwise the first run would still work in the parent's checkout.
@@ -245,14 +245,6 @@ export function createTools(ctx: Ctx, settings: Settings) {
     return waitForeground(record, signal);
   }
 
-  function capacity(parentID: string, wanted: number) {
-    const limit = settings.maxConcurrent;
-    const running = runningCount(parentID);
-    if (running + wanted > limit) {
-      throw new Error(`Starting ${wanted} subagent(s) would exceed the limit of ${limit} running at once (${running} running). Wait for reports or stop some first.`);
-    }
-  }
-
   const subagent: ToolInfo = {
     name: "subagent",
     description: text.SUBAGENT_DESCRIPTION,
@@ -289,7 +281,6 @@ export function createTools(ctx: Ctx, settings: Settings) {
         return run(record, spec.prompt, background, context.signal);
       }
 
-      capacity(parent.id, 1);
       const prepared = await prepare(context, spec);
       const { record, prompt } = await create(parent, prepared);
       await context.progress({ sessionID: record.id, status: "running" });
@@ -318,7 +309,6 @@ export function createTools(ctx: Ctx, settings: Settings) {
       const tasks = (input as { tasks?: unknown }).tasks;
       if (!Array.isArray(tasks) || tasks.length === 0) throw new Error("tasks must list at least one subagent.");
       const specs = tasks.map(readSpec);
-      capacity(parent.id, specs.length);
       const prepared: Prepared[] = [];
       for (const spec of specs) prepared.push(await prepare(context, spec));
 

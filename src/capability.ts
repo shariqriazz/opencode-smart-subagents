@@ -27,6 +27,18 @@ export function capabilityRules(capability: Capability | undefined): PermissionR
   }
 }
 
+/**
+ * OpenCode's own session and worktree management tools, which children reach through code mode. Moving, renaming, or
+ * creating and removing worktrees belongs to the parent and the plugin: a moved worktree child would leave its
+ * isolation, and a child could rename its parent. Effective names are `<namespace>_<tool>`.
+ */
+export const CHILD_DENIED_TOOLS = ["opencode_session_move", "opencode_session_rename", "opencode_worktree_create", "opencode_worktree_remove"];
+
+/** Every child's session rules: the management denials, then its capability. */
+export function childRules(capability: Capability | undefined): PermissionRule[] {
+  return [...CHILD_DENIED_TOOLS.map(deny), ...capabilityRules(capability)];
+}
+
 export function isCapability(value: unknown): value is Capability {
   return typeof value === "string" && (CAPABILITIES as readonly string[]).includes(value);
 }

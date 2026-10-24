@@ -39,7 +39,7 @@ export default {
     shared.contexts.add(ctx);
     void load(ctx);
 
-    const { tools, isChild } = createTools(ctx, settings);
+    const { tools, isChild } = createTools(ctx);
     const skill = readSkill("../skills/smart-subagents/SKILL.md");
 
     await ctx.tool.transform((editor) => {

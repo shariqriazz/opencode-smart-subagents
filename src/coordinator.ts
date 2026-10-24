@@ -88,7 +88,6 @@ export function load(ctx: Ctx): Promise<void> {
 }
 
 export const children = (parentID: string) => [...state().records.values()].filter((record) => record.parentID === parentID);
-export const runningCount = (parentID: string) => children(parentID).filter((record) => record.status === "running").length;
 
 function liveContext(preferred: Ctx): Ctx | undefined {
   const contexts = state().contexts;

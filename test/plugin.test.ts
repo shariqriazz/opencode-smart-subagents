@@ -4,11 +4,11 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import test from "node:test";
-import { capabilityRules, isCapability } from "../src/capability.ts";
+import { capabilityRules, CHILD_DENIED_TOOLS, childRules, isCapability } from "../src/capability.ts";
 import { load, outcome, state, watch, type ChildRecord, type Ctx } from "../src/coordinator.ts";
 import plugin, { readSkill } from "../src/index.ts";
 import { buildChildPrompt, forkTranscript, latestError, latestReport, parseForkTurns, type ContextMessage } from "../src/messages.ts";
-import { DEFAULT_MAX_CONCURRENT, parseModelRef, readSettings } from "../src/options.ts";
+import { parseModelRef, readSettings } from "../src/options.ts";
 import { CHILD_SYSTEM_NOTE, CHILD_TOOLS, PARENT_TOOLS } from "../src/prompt.ts";
 import { cleanRepoRoot, deleteWorktreeBranch, describeWorktree, inspectWorktree, integrateWorktree, patchWorktree } from "../src/worktree.ts";
 
@@ -198,12 +198,12 @@ async function setupPlugin(fake: ReturnType<typeof fakeContext>, options: Record
 
 test("readSettings uses defaults and reports invalid values", () => {
   const warnings: string[] = [];
-  assert.deepEqual(readSettings(undefined, (message) => warnings.push(message)), { maxConcurrent: DEFAULT_MAX_CONCURRENT, resultDelivery: "steer" });
-  assert.deepEqual(readSettings({ maxConcurrent: 4, resultDelivery: "queue" }, (message) => warnings.push(message)), { maxConcurrent: 4, resultDelivery: "queue" });
+  assert.deepEqual(readSettings(undefined, (message) => warnings.push(message)), { resultDelivery: "steer" });
+  assert.deepEqual(readSettings({ resultDelivery: "queue" }, (message) => warnings.push(message)), { resultDelivery: "queue" });
   assert.equal(warnings.length, 0);
-  const settings = readSettings({ maxConcurrent: 0, resultDelivery: "later" }, (message) => warnings.push(message));
-  assert.deepEqual(settings, { maxConcurrent: DEFAULT_MAX_CONCURRENT, resultDelivery: "steer" });
-  assert.equal(warnings.length, 2);
+  const settings = readSettings({ resultDelivery: "later" }, (message) => warnings.push(message));
+  assert.deepEqual(settings, { resultDelivery: "steer" });
+  assert.equal(warnings.length, 1);
 });
 
 test("parseModelRef keeps slashes in the model ID and reads the variant", () => {
@@ -221,6 +221,9 @@ test("capability modes deny only what they remove", () => {
   assert.deepEqual(actions("read-write"), ["shell:deny"]);
   assert.deepEqual(actions("all"), []);
   assert.deepEqual(actions(undefined), []);
+  const childActions = childRules("read-only").map((rule) => `${rule.action}:${rule.effect}`);
+  assert.deepEqual(childActions, [...CHILD_DENIED_TOOLS.map((tool) => `${tool}:deny`), "edit:deny", "shell:deny"]);
+  assert.equal(childRules(undefined).length, CHILD_DENIED_TOOLS.length);
   assert.equal(isCapability("execute"), true);
   assert.equal(isCapability("everything"), false);
 });
@@ -427,10 +430,9 @@ test("subagent_batch starts every child or none", async () => {
   resetState();
   const fake = fakeContext();
   fake.addSession({ id: "ses_parent" });
-  const { tool, cleanup } = await setupPlugin(fake, { maxConcurrent: 2 });
+  const { tool, cleanup } = await setupPlugin(fake);
   const task = (description: string) => ({ agent: "general", description, prompt: "Work." });
 
-  await assert.rejects(tool("subagent_batch").execute({ tasks: [task("a"), task("b"), task("c")] }, toolContext("ses_parent")), /limit of 2/);
   await assert.rejects(tool("subagent_batch").execute({ tasks: [task("a"), { agent: "missing", description: "b", prompt: "x" }] }, toolContext("ses_parent")), /Unknown agent/);
   assert.equal(fake.prompts.length, 0, "a rejected batch starts nothing");
 

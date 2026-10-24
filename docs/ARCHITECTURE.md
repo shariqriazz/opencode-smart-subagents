@@ -61,6 +61,8 @@ Tools register per location, so every session would see all ten. The `context` h
 - The plugin overrides the built-in `subagent` tool rather than adding a second launcher. One launch tool is clearer for the model, and keeping the built-in's name, inputs, result metadata (`sessionID`, `status`), and report metadata (`source: "subagent"`, `childID`, `agent`, `state`) keeps consumers such as `opencode-smart-compaction` working. OpenCode's own subagent plugin still appends the list of available agents to the tool description, because it finds the tool by name.
 - `ask_parent` does not block. A tool call that waits for the parent would hold a child's run open across instance unloads and restarts. Ending the child's turn and waking it with the answer survives both.
 - Capability modes deny only `edit` and `shell`. An allowlist of the form "deny everything, then allow reads" would also override OpenCode's built-in access to its tool-output and temporary directories, which session rules evaluate after. The cost is that MCP and plugin tools keep the agent's permissions.
+- Every child also gets session rules denying OpenCode's `opencode_session_move`, `opencode_session_rename`, `opencode_worktree_create`, and `opencode_worktree_remove` code-mode tools; a wholly denied tool drops out of the code-mode catalog. Explicit session permissions replace the parent's inherited ones, so the parent's session rules are copied in first.
+- There is no concurrency cap, matching the built-in tool.
 - Profiles are OpenCode agents. The plugin adds no profile system of its own; agents already carry a model, permissions, and a description.
 
 ## Gotchas
@@ -76,6 +78,8 @@ Recheck these on every OpenCode upgrade; paths are in the OpenCode repository.
 - `packages/core/src/tool/plugin/subagent.ts`: the built-in tool's name, input fields, result metadata, and its `context` hook that appends available agents.
 - `packages/core/src/session/subagent-completion.ts`: the report message format and metadata the plugin mirrors.
 - `packages/core/src/plugin/host.ts`: `session.create` ignoring `location` when `parentID` is set, and which session methods the plugin context exposes.
+- `packages/core/src/session.ts`: explicit `permissions` on `session.create` replacing the parent's.
+- `packages/core/src/tool/plugin/opencode.ts` and `packages/core/src/tool/runtime.ts`: the `opencode` namespace tool names and the `<namespace>_<tool>` effective names the child denials match.
 - `packages/core/src/session/move.ts`: moves going through the inbox.
 - `packages/core/src/session/run-coordinator.ts`: `awaitIdle` following successor runs.
 - `packages/core/src/location-activity.ts`: the idle timeout that unloads location instances.
