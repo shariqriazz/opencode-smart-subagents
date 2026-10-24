@@ -1,6 +1,6 @@
 {
   "name": "opencode-smart-subagents",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Two-way subagents for OpenCode 2: children that message and question their parent, steering, peer messages, batches, context forks, and isolated worktrees.",
   "license": "MIT",
   "author": "Shariq Riaz",

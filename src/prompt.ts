@@ -19,7 +19,7 @@ export const PARAM = {
   agent: "Subagent to run, from the list of available subagents.",
   description: "Short 3-5 word label shown to the user.",
   prompt: "Complete task: goal, context, paths, scope, and the report you expect.",
-  sessionID: "Continue this child session instead of starting a new one.",
+  sessionID: "Continue this child session instead of starting a new one. A running child takes the prompt mid-run.",
   background: "Return at once; the report arrives later as a message. Default false.",
   model:
     'Set only when the user asks for a specific model. Written as "providerID/modelID" or "providerID/modelID#variant". Default: the agent\'s model, otherwise yours.',
@@ -102,6 +102,10 @@ export function backgroundStarted(id: string, agent: string, worktree?: string) 
     `Started subagent ${id} (${agent}${worktree ? `, worktree ${worktree}` : ""}) in the background.`,
     "Its report will arrive as a message. Continue independent work or end your turn; don't poll for it or duplicate its work.",
   ].join("\n");
+}
+
+export function steered(verb: "Steered" | "Answered" | "Continued", id: string) {
+  return `${verb} subagent ${id}. Its report will arrive as a message.`;
 }
 
 export function foregroundQuestion(id: string, question: string) {

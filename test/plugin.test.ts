@@ -368,8 +368,15 @@ test("setup registers the tools and skill, and the context hook splits parent an
 
   const child = event("ses_kid");
   await fake.hooks.context!(child);
-  assert.deepEqual(Object.keys(child.tools).sort(), [...CHILD_TOOLS, "read"].sort());
-  assert.deepEqual(child.system, [{ type: "text", text: CHILD_SYSTEM_NOTE }]);
+  assert.deepEqual(Object.keys(child.tools), ["read"], "a child the plugin did not start gets neither tool set");
+  assert.equal(child.system.length, 0);
+
+  fake.addSession({ id: "ses_tracked", parentID: "ses_parent" });
+  state().records.set("ses_tracked", { id: "ses_tracked", parentID: "ses_parent", agent: "general", description: "d", status: "running", createdAt: 1, updatedAt: 1 });
+  const tracked = event("ses_tracked");
+  await fake.hooks.context!(tracked);
+  assert.deepEqual(Object.keys(tracked.tools).sort(), [...CHILD_TOOLS, "read"].sort());
+  assert.deepEqual(tracked.system, [{ type: "text", text: CHILD_SYSTEM_NOTE }]);
   if (typeof cleanup === "function") await cleanup();
 });
 
@@ -393,6 +400,39 @@ test("a background subagent reports to its parent, and a child cannot start suba
     /cannot start or manage subagents/,
   );
   await assert.rejects(tool("subagent").execute({ agent: "build", description: "x", prompt: "x" }, toolContext("ses_parent")), /cannot run as a subagent/);
+  if (typeof cleanup === "function") await cleanup();
+});
+
+test("subagent with a running child's sessionID steers it, and the child still sends one report", async () => {
+  resetState();
+  const fake = fakeContext();
+  fake.addSession({ id: "ses_parent" });
+  const { tool, cleanup } = await setupPlugin(fake);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  fake.setOnPrompt(async (session, text) => {
+    await gate;
+    if (!text.startsWith("Also")) {
+      session.messages.push(assistant(`report covering ${session.messages.filter((m) => m.type === "user").length} prompts`));
+      session.outcome = "succeeded";
+    }
+  });
+
+  await tool("subagent").execute({ agent: "general", description: "work", prompt: "Start.", background: true }, toolContext("ses_parent"));
+  const steered = await tool("subagent").execute({ agent: "general", description: "work", prompt: "Also check docs.", sessionID: "ses_child1" }, toolContext("ses_parent"));
+  assert.match(steered.content, /^Steered subagent ses_child1/);
+  assert.deepEqual(steered.metadata, { sessionID: "ses_child1", status: "running" });
+  assert.equal(fake.prompts.at(-1)!.delivery, "steer");
+  await assert.rejects(
+    tool("subagent").execute({ agent: "explore", description: "work", prompt: "x", sessionID: "ses_child1" }, toolContext("ses_parent")),
+    /Wait for its report before switching/,
+  );
+
+  release();
+  await until(() => fake.synthetic.length === 1, "report");
+  await tick();
+  assert.equal(fake.synthetic.length, 1);
+  assert.match(fake.synthetic[0]!.text, /report covering 2 prompts/);
   if (typeof cleanup === "function") await cleanup();
 });
 

@@ -33,6 +33,7 @@ stateDiagram-v2
   running --> completed
   running --> failed
   running --> cancelled: subagent_stop or interruption
+  running --> running: subagent_message or subagent with its sessionID (steer)
   completed --> running: subagent_message, message_peer, or continue
   failed --> running
   cancelled --> running
@@ -48,7 +49,7 @@ Any run of a known child that the plugin did not start, such as a user typing in
 
 ### Choosing tools per session
 
-Tools register per location, so every session would see all ten. The `context` hook runs before each model request: in a child session it removes the parent tools and adds a short system note about reporting and `ask_parent`; in any other session it removes the child tools. Each tool also checks the session itself, so a stale tool list cannot bypass the split. A session counts as a child when it has a record or a `parentID`.
+Tools register per location, so every session would see all ten. The `context` hook runs before each model request: any session with a `parentID` loses the parent tools, and only children with a record get the child tools and a short system note about reporting and `ask_parent`. Children OpenCode starts itself, such as command subagents, have no record, so they look like native subagents instead of offering tools that would fail. Each tool also checks the session itself, so a stale tool list cannot bypass the split.
 
 ### Worktree children
 

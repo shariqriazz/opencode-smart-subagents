@@ -48,9 +48,13 @@ export default {
     await ctx.skill.transform((editor) => editor.add(skill));
 
     await ctx.session.hook("context", async (event) => {
-      const child = await isChild(event.sessionID).catch(() => false);
-      for (const name of child ? PARENT_TOOLS : CHILD_TOOLS) delete event.tools[name];
-      if (child) event.system.push({ type: "text", text: CHILD_SYSTEM_NOTE });
+      // Children OpenCode starts itself, such as slash-command subagents, report through OpenCode and get no child tools.
+      await load(ctx).catch(() => undefined);
+      const tracked = shared.records.has(event.sessionID);
+      const child = tracked || (await isChild(event.sessionID).catch(() => false));
+      if (child) for (const name of PARENT_TOOLS) delete event.tools[name];
+      if (!tracked) for (const name of CHILD_TOOLS) delete event.tools[name];
+      if (tracked) event.system.push({ type: "text", text: CHILD_SYSTEM_NOTE });
     });
 
     const controller = new AbortController();

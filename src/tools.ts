@@ -245,6 +245,15 @@ export function createTools(ctx: Ctx) {
     return waitForeground(record, signal);
   }
 
+  /** Steers a running child, answers its question, or starts its next turn; its watcher sends the next report. */
+  async function steer(record: ChildRecord, body: string) {
+    record.status = "running";
+    record.question = undefined;
+    await save(ctx, record);
+    await ctx.session.prompt({ sessionID: record.id, text: body, delivery: "steer" });
+    watch(ctx, record.id);
+  }
+
   const subagent: ToolInfo = {
     name: "subagent",
     description: text.SUBAGENT_DESCRIPTION,
@@ -267,7 +276,13 @@ export function createTools(ctx: Ctx) {
 
       if (continueID) {
         const record = await ownChild(continueID, parent.id);
-        if (record.status === "running") throw new Error(`Subagent ${record.id} is still running. Steer it with subagent_message.`);
+        if (record.status === "running") {
+          // Like OpenCode's built-in tool, a running child takes the prompt mid-run and still sends one report.
+          if (spec.agent !== record.agent || spec.model) throw new Error(`Subagent ${record.id} is running. Wait for its report before switching its agent or model.`);
+          await assertAllowed(context, record.agent);
+          await steer(record, spec.prompt);
+          return { content: text.steered("Steered", record.id), metadata: { sessionID: record.id, status: "running" } };
+        }
         const agent = await resolveAgent(spec.agent);
         await assertAllowed(context, agent.id);
         const model = spec.model ? await resolveModel(spec.model) : agent.id !== record.agent ? agent.model : undefined;
@@ -350,18 +365,9 @@ export function createTools(ctx: Ctx) {
       const { sessionID, message: body } = input as { sessionID?: unknown; message?: unknown };
       if (typeof sessionID !== "string" || typeof body !== "string" || !body.trim()) throw new Error("sessionID and message are required.");
       const record = await ownChild(sessionID, parent.id);
-      const answered = record.status === "waiting";
-      const wasRunning = record.status === "running";
-      record.status = "running";
-      record.question = undefined;
-      await save(ctx, record);
-      await ctx.session.prompt({ sessionID: record.id, text: body, delivery: "steer" });
-      watch(ctx, record.id);
-      const verb = answered ? "Answered" : wasRunning ? "Steered" : "Continued";
-      return {
-        content: `${verb} subagent ${record.id}. Its report will arrive as a message.`,
-        metadata: { sessionID: record.id, status: "running" },
-      };
+      const verb = record.status === "waiting" ? "Answered" : record.status === "running" ? "Steered" : "Continued";
+      await steer(record, body);
+      return { content: text.steered(verb, record.id), metadata: { sessionID: record.id, status: "running" } };
     },
   };
 
